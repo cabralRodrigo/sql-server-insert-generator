@@ -8,7 +8,7 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator
     public static class App
     {
         [STAThread]
-        public static void Main(string[] args)
+        public static void Main()
         {
             try
             {

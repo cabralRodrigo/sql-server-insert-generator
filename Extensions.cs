@@ -57,5 +57,10 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator
         {
             return string.IsNullOrEmpty(source);
         }
+
+        public static bool IsLastItem<T>(this IEnumerable<T> source, T item) where T : class
+        {
+            return item == source.Last();
+        }
     }
 }

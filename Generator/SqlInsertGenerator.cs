@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
 
 namespace CabralRodrigo.Util.SqlServerInsertGenerator.Generator
 {
@@ -59,90 +58,19 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator.Generator
         /// <returns>The insert command generated.</returns>
         public string Build()
         {
-            //TODO: Use T4 Templates to generate the insert command
-
-            var sb = new StringBuilder();
             var metadata = this.GetTableMetadata();
             var fillData = this.GetFillDataToInsertCommand();
+            var template = new SqlInsertCommandTemplate(new SqlInsertCommandMetadata(metadata), fillData);
 
-            var insertFields = string.Join(", ", metadata.Columns.Select(s => s.Name).ToArray());
-            var insertBody = this.BuildBodyInsert(metadata, fillData);
-
-            sb.AppendLine($"insert into {this.Table} ({insertFields}) values ");
-            sb.Append(insertBody);
-
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Builds the body of the insert command.
-        /// </summary>
-        /// <param name="metadata">The metadata of the target table for generate the insert.</param>
-        /// <param name="fillData">The data that will be used to fill the insert command.</param>
-        /// <returns>The body of the insert command.</returns>
-        private string BuildBodyInsert(SqlServerTableMetadata metadata, List<Dictionary<string, object>> fillData)
-        {
-            //TODO: Refactor this method to handle the metadata fields length in a better way
-            var sb = new StringBuilder();
-
-            var maxSizeName = metadata.Columns.GetLengthOfLongestString(s => s.Name);
-            var maxSizeDataType = metadata.Columns.GetLengthOfLongestString(this.FormatColumnDataType);
-            var maxSizeNullable = metadata.Columns.GetLengthOfLongestString(this.FormatColumnNullableField);
-
-            var bodyParts = metadata.Columns.Select(column => new
-            {
-                Name = column.Name.AppendUtilLength('-', maxSizeName),
-                RawName = column.Name,
-                DbTypeString = this.FormatColumnDataType(column).AppendUtilLength('-', maxSizeDataType),
-                Nullable = this.FormatColumnNullableField(column).AppendUtilLength('-', maxSizeNullable),
-                DbType = column.DataType,
-                DefaultValue = column.IsNullable ? "null" : "''"
-            }).ToList();
-
-            if (fillData.Count < 1)
-                fillData.Add(null);
-
-            foreach (var data in fillData)
-            {
-                sb.AppendLine("(");
-                foreach (var part in bodyParts)
-                {
-                    string dataString = null;
-                    if (data != null && data.ContainsKey(part.RawName))
-                    {
-                        var convertedData = this.ConvertObjectToSqlString(data[part.RawName], part.DbType);
-                        if (this.DbTypeValueHasToBeQuoted(part.DbType, convertedData))
-                            dataString = $"'{convertedData.Trim()}'";
-                        else
-                            dataString = convertedData;
-                    }
-                    else
-                        dataString = part.DefaultValue;
-
-                    sb.Append($"    /* {part.Name} | {part.DbTypeString} | {part.Nullable} */   {(data == null ? part.DefaultValue : dataString)}");
-
-                    if (part != bodyParts.Last())
-                        sb.AppendLine(",");
-                    else
-                        sb.AppendLine();
-                }
-
-                if (data == fillData.Last())
-                    sb.AppendLine(")");
-                else
-                    sb.AppendLine("),");
-            }
-
-            return sb.ToString();
+            return template.TransformText();
         }
 
         /// <summary>
         /// Converts a object to a sql string.
         /// </summary>
         /// <param name="objectValue">The object to be converted.</param>
-        /// <param name="columnType">The column type of the object will be used.</param>
         /// <returns>The string representation of the object that can be used in a sql query.</returns>
-        private string ConvertObjectToSqlString(object objectValue, SqlDbType columnType)
+        private string ConvertObjectToSqlString(object objectValue)
         {
             if (objectValue is DBNull)
                 return "null";
@@ -153,31 +81,9 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator.Generator
             else if (objectValue is Guid)
                 return ((Guid)objectValue).ToString();
             else if (objectValue is DateTime)
-                return ((DateTime)objectValue).ToString(columnType == SqlDbType.Date ? "yyy-MM-dd" : "yyyy-MM-dd HH:mm:ss.fff");
+                return ((DateTime)objectValue).ToString("yyyy-MM-dd HH:mm:ss.fff");
             else
                 throw new Exception("Unknowm object type: " + objectValue.GetType());
-        }
-
-        /// <summary>
-        /// Determines when the <seealso cref="SqlDbType"/> has to be quoted in a sql query.
-        /// </summary>
-        /// <param name="dbType">The <seealso cref="SqlDbType"/> to be checked.</param>
-        /// <param name="objectValue">The value of the column.</param>
-        /// <returns>True if the <seealso cref="SqlDbType"/> has to be quoted in a sql query, False if not.</returns>
-        private bool DbTypeValueHasToBeQuoted(SqlDbType dbType, string objectValue)
-        {
-            return !new SqlDbType[]
-            {
-                SqlDbType.BigInt,
-                SqlDbType.Bit,
-                SqlDbType.Decimal,
-                SqlDbType.Float,
-                SqlDbType.Int,
-                SqlDbType.Money,
-                SqlDbType.SmallInt,
-                SqlDbType.SmallMoney,
-                SqlDbType.TinyInt
-            }.Contains(dbType) && objectValue != "null";
         }
 
         /// <summary>
@@ -210,9 +116,9 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator.Generator
         /// Gets the fill data to be used in the generation of the insert command.
         /// </summary>
         /// <returns>The data to be used in the generation of the insert command.</returns>
-        private List<Dictionary<string, object>> GetFillDataToInsertCommand()
+        private List<Dictionary<string, string>> GetFillDataToInsertCommand()
         {
-            var data = new List<Dictionary<string, object>>();
+            var data = new List<Dictionary<string, string>>();
 
             if (this.GenerateInsertWihData)
                 SqlConnector.ExecuteWithSqlAdapter(this.Database, $"select * from {this.Table} where {this.WhereClause}", adapter =>
@@ -223,10 +129,10 @@ namespace CabralRodrigo.Util.SqlServerInsertGenerator.Generator
 
                     foreach (var row in rows)
                     {
-                        var dictionary = new Dictionary<string, object>();
+                        var dictionary = new Dictionary<string, string>();
 
                         foreach (var column in columns)
-                            dictionary.Add(column.ColumnName, row[column.ColumnName]);
+                            dictionary.Add(column.ColumnName, this.ConvertObjectToSqlString(row[column.ColumnName]));
 
                         data.Add(dictionary);
                     }

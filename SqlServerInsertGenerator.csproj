@@ -22,6 +22,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -53,6 +54,13 @@
     <Compile Include="Configuration\ConfigurationManager.cs" />
     <Compile Include="Configuration\LoadConfigurationResult.cs" />
     <Compile Include="Extensions.cs" />
+    <Compile Include="Generator\SqlInsertCommand.cs" />
+    <Compile Include="Generator\SqlInsertCommandMetadata.cs" />
+    <Compile Include="Generator\SqlInsertCommandTemplate.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>SqlInsertCommandTemplate.tt</DependentUpon>
+    </Compile>
     <Compile Include="Metadata\SqlServerMetadataModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SqlConnector.cs" />
@@ -64,6 +72,13 @@
   </ItemGroup>
   <ItemGroup>
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Generator\SqlInsertCommandTemplate.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>SqlInsertCommandTemplate.cs</LastGenOutput>
+      <CustomToolNamespace>CabralRodrigo.Util.SqlServerInsertGenerator.Generator</CustomToolNamespace>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
